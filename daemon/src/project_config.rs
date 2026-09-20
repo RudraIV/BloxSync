@@ -1,4 +1,5 @@
-//! Project config file (`ro-sync.json`) — identifies the project and its
+//! Project config file (`bloxsync.json`, falling back to upstream's
+//! `ro-sync.json`) — identifies the project and its
 //! bound Roblox GameId / PlaceIds. Written on first daemon startup, read on
 //! subsequent ones; fields are only overwritten by explicit CLI args.
 
@@ -9,7 +10,13 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-pub const CONFIG_FILE: &str = "ro-sync.json";
+pub const CONFIG_FILE: &str = "bloxsync.json";
+/// Upstream Ro Sync's config name. A project created before the rename is read
+/// from this and rewritten as `bloxsync.json` on the next write, so an existing
+/// project keeps working without anyone migrating it by hand. The old file is
+/// left in place rather than deleted — it costs nothing and makes going back to
+/// upstream a matter of deleting the new one.
+pub const LEGACY_CONFIG_FILE: &str = "ro-sync.json";
 pub const CONFIG_VERSION: u32 = 1;
 
 /// Which side may write.
@@ -137,10 +144,17 @@ fn validated_config_path(root: &Path, allow_missing: bool) -> io::Result<PathBuf
 }
 
 fn read_config_text(root: &Path) -> io::Result<Option<String>> {
+    if let Some(text) = read_named_config_text(root, CONFIG_FILE)? {
+        return Ok(Some(text));
+    }
+    read_named_config_text(root, LEGACY_CONFIG_FILE)
+}
+
+fn read_named_config_text(root: &Path, file_name: &str) -> io::Result<Option<String>> {
     let canonical_root = crate::fs_safety::stable_canonical_directory(root)?;
     let path = crate::fs_safety::validate_descendant_no_follow(
         &canonical_root,
-        Path::new(CONFIG_FILE),
+        Path::new(file_name),
         true,
     )?;
     let guard = crate::fs_safety::guard_descendant_parent_chain(&canonical_root, &path, true)?;
@@ -178,7 +192,7 @@ pub fn write(root: &Path, cfg: &ProjectConfig) -> io::Result<()> {
     write_text_replace(root, &path, &(text + "\n"))
 }
 
-/// Re-parse `<root>/ro-sync.json` from disk. Returns `Ok(None)` if the file
+/// Re-parse the project config from disk. Returns `Ok(None)` if the file
 /// doesn't exist — callers should treat that as "no change" rather than an error.
 pub fn read_from_disk(root: &Path) -> io::Result<Option<ProjectConfig>> {
     read_config_text(root)?
@@ -444,5 +458,77 @@ mod tests {
         let write_error = write(project.path(), &config).unwrap_err();
         assert_eq!(write_error.kind(), io::ErrorKind::InvalidData);
         assert_eq!(fs::read(&sentinel).unwrap(), b"external sentinel\n");
+    }
+
+    // ---- BloxSync rename: an existing Ro Sync project must keep working ----
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "bloxsync-cfg-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn legacy_ro_sync_config_is_still_read() {
+        let root = scratch("legacy-read");
+        fs::write(
+            root.join(LEGACY_CONFIG_FILE),
+            r#"{"name":"Existing","gameId":"123","syncMode":"mirror"}"#,
+        )
+        .unwrap();
+
+        let cfg = read_from_disk(&root).unwrap().expect("legacy config");
+        assert_eq!(cfg.name, "Existing");
+        assert_eq!(cfg.game_id.as_deref(), Some("123"));
+        assert_eq!(cfg.sync_mode, SyncMode::Mirror);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_legacy_project_is_migrated_on_write_without_losing_the_old_file() {
+        let root = scratch("legacy-migrate");
+        fs::write(root.join(LEGACY_CONFIG_FILE), r#"{"name":"Existing"}"#).unwrap();
+
+        let cfg = load_or_create(&root).unwrap();
+        assert_eq!(cfg.name, "Existing");
+        write(&root, &cfg).unwrap();
+
+        assert!(
+            root.join(CONFIG_FILE).exists(),
+            "writing must produce the BloxSync config"
+        );
+        assert!(
+            root.join(LEGACY_CONFIG_FILE).exists(),
+            "the old file is left alone so reverting to upstream stays easy"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bloxsync_config_wins_when_both_exist() {
+        let root = scratch("both");
+        fs::write(root.join(LEGACY_CONFIG_FILE), r#"{"name":"Old"}"#).unwrap();
+        fs::write(root.join(CONFIG_FILE), r#"{"name":"New"}"#).unwrap();
+        assert_eq!(read_from_disk(&root).unwrap().unwrap().name, "New");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn git_history_defaults_follow_the_sync_mode() {
+        let mut cfg = ProjectConfig::default_for(Path::new("/tmp/x"));
+        assert!(!cfg.git_history_enabled(), "two-way stays opt-in");
+        cfg.sync_mode = SyncMode::Mirror;
+        assert!(
+            cfg.git_history_enabled(),
+            "a mirror keeps history by default"
+        );
+        cfg.git_history = Some(false);
+        assert!(!cfg.git_history_enabled(), "an explicit setting wins");
     }
 }

@@ -230,7 +230,7 @@ impl CliFixture {
 }
 
 async fn run_cli(fixture: &CliFixture, daemon: &FakeDaemon, extra_args: &[&str]) -> Output {
-    let binary = env!("CARGO_BIN_EXE_rosync").to_owned();
+    let binary = env!("CARGO_BIN_EXE_bloxsync").to_owned();
     let project = fixture.project.clone();
     let script = fixture.script.clone();
     let port = daemon.port.to_string();

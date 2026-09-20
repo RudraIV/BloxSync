@@ -209,7 +209,7 @@ impl CliFixture {
 }
 
 fn run_cli(fixture: &CliFixture, daemon: &FakeDaemon, args: &[&str]) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_rosync"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_bloxsync"));
     command.args(args);
     command.args(["--project"]).arg(&fixture.project).args([
         "--port",

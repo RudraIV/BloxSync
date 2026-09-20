@@ -5,9 +5,9 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "rosync",
+    name = "bloxsync",
     version,
-    about = "Ro Sync — Roblox Studio sync daemon"
+    about = "BloxSync — Studio-authoritative Roblox sync daemon (modified fork of Ro Sync)"
 )]
 pub struct Cli {
     #[command(subcommand)]

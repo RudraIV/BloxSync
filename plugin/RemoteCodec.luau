@@ -1,6 +1,6 @@
 --!nonstrict
 
--- DataModel path and JSON-safe value codec for Ro Sync's remote-control
+-- DataModel path and JSON-safe value codec for BloxSync's remote-control
 -- protocol. Keeping this recursion-heavy code in a packaged child module
 -- reduces the size and long-lived register pressure of Plugin.luau.
 

@@ -1,6 +1,6 @@
 --!strict
 
--- Native viewport and instance rendering for Ro Sync.
+-- Native viewport and instance rendering for BloxSync.
 --
 -- The public functions return straight-alpha RGBA8 buffers. Screenshot-backed
 -- EditableImages are read and destroyed inside this module, and every temporary

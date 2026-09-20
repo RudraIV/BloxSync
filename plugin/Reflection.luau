@@ -1,6 +1,6 @@
 --!nonstrict
 
--- Class, enum, and attribute introspection handlers for Ro Sync. The baked
+-- Class, enum, and attribute introspection handlers for BloxSync. The baked
 -- fallback metadata is intentionally isolated from Plugin.luau so Studio
 -- compiles it as a separate ModuleScript.
 

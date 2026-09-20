@@ -1,5 +1,5 @@
 --!nonstrict
--- Ro Sync — Roblox Studio plugin.
+-- BloxSync — Roblox Studio plugin.
 -- Two-way sync between Studio DataModel and a local Rust daemon over HTTP.
 
 local HttpService = game:GetService("HttpService")
@@ -163,7 +163,7 @@ local function runPlaytestRuntimeAgent()
 		task.wait(0.05)
 	until os.clock() >= testArgsDeadline
 	if runtimeSessionToken == "" or runtimePlaytestJobId == "" then
-		warn("[Ro Sync runtime] no authenticated Ro Sync playtest session; runtime bridge disabled")
+		warn("[BloxSync runtime] no authenticated BloxSync playtest session; runtime bridge disabled")
 		return
 	end
 	local seenRuntimeRequestIds = {}
@@ -315,10 +315,10 @@ local function runPlaytestRuntimeAgent()
 				if okRuntime then
 					playscriptRuntime = runtime
 				else
-					warn("[Ro Sync runtime] playscript initialization failed: " .. tostring(runtime))
+					warn("[BloxSync runtime] playscript initialization failed: " .. tostring(runtime))
 				end
 			else
-				warn("[Ro Sync runtime] packaged playscript module is unavailable: " .. tostring(module))
+				warn("[BloxSync runtime] packaged playscript module is unavailable: " .. tostring(module))
 			end
 		end
 	end
@@ -328,14 +328,14 @@ local function runPlaytestRuntimeAgent()
 			return HttpService:JSONEncode(message)
 		end)
 		if not ok then
-			warn("[Ro Sync runtime] response encoding failed: " .. tostring(encoded))
+			warn("[BloxSync runtime] response encoding failed: " .. tostring(encoded))
 			return false, tostring(encoded)
 		end
 		local sent, sendError = pcall(function()
 			connection:SendMessage(encoded)
 		end)
 		if not sent then
-			warn("[Ro Sync runtime] response send failed: " .. tostring(sendError))
+			warn("[BloxSync runtime] response send failed: " .. tostring(sendError))
 			return false, tostring(sendError)
 		end
 		return true, nil
@@ -1069,7 +1069,7 @@ local function runPlaytestRuntimeAgent()
 		if role ~= "server" then
 			error("ending a playtest requires the PlayServer context")
 		end
-		local result = if args.result == nil then "Ro Sync playtest stopped" else args.result
+		local result = if args.result == nil then "BloxSync playtest stopped" else args.result
 		-- Let the response reach the edit coordinator before EndTest tears down
 		-- the PluginConnection and the temporary playtest DataModel.
 		task.delay(0.1, function()
@@ -1077,7 +1077,7 @@ local function runPlaytestRuntimeAgent()
 				game:GetService("StudioTestService"):EndTest(result)
 			end)
 			if not ok then
-				warn("[Ro Sync runtime] unable to end playtest: " .. tostring(failure))
+				warn("[BloxSync runtime] unable to end playtest: " .. tostring(failure))
 			end
 		end)
 		return { requested = true }
@@ -1182,7 +1182,7 @@ local function runPlaytestRuntimeAgent()
 		return game:GetService("PluginConnectionService")
 	end)
 	if not ok or not connectionService then
-		warn("[Ro Sync runtime] PluginConnectionService unavailable")
+		warn("[BloxSync runtime] PluginConnectionService unavailable")
 		return
 	end
 	pcall(function()
@@ -1279,7 +1279,7 @@ do
 		end
 	end)
 	if not ok then
-		warn("[Ro Sync] LogService subscription failed: " .. tostring(err))
+		warn("[BloxSync] LogService subscription failed: " .. tostring(err))
 	end
 end
 
@@ -1339,13 +1339,13 @@ end
 -- UI
 --------------------------------------------------------------------------------
 
-local toolbar = plugin:CreateToolbar("Ro Sync")
-local toggleButton = toolbar:CreateButton("Ro Sync", "Open the Ro Sync panel", "")
+local toolbar = plugin:CreateToolbar("BloxSync")
+local toggleButton = toolbar:CreateButton("BloxSync", "Open the BloxSync panel", "")
 toggleButton.ClickableWhenViewportHidden = true
 
 local widgetInfo = DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 360, 300, 280, 220)
 local widget = plugin:CreateDockWidgetPluginGuiAsync("RoSyncPanel", widgetInfo)
-widget.Title = "Ro Sync"
+widget.Title = "BloxSync"
 widget.Name = "RoSyncPanel"
 
 toggleButton.Click:Connect(function()
@@ -1691,7 +1691,7 @@ local function mountFallbackUi(reason)
 			stateDot.BackgroundColor3 = Color3.fromRGB(65, 135, 245)
 			connectBtn.Text = "Create Project"
 		elseif state == "project_creating" then
-			status.Text = "Creating Ro Sync project..."
+			status.Text = "Creating BloxSync project..."
 			status.TextColor3 = Color3.fromRGB(65, 135, 245)
 			stateDot.BackgroundColor3 = Color3.fromRGB(65, 135, 245)
 			connectBtn.Text = "Cancel"
@@ -2162,7 +2162,7 @@ local PathHelpers
 do
 	local moduleScript = script:FindFirstChild("PathHelpers")
 	if not moduleScript or not moduleScript:IsA("ModuleScript") then
-		error("[Ro Sync] packaged PathHelpers module is missing")
+		error("[BloxSync] packaged PathHelpers module is missing")
 	end
 	local module = require(moduleScript)
 	PathHelpers = module.install({
@@ -2368,7 +2368,7 @@ local function applyScriptSource(inst, newSource: string, suppressStudioEcho: bo
 		if sourceGeneration then
 			sourceSyncState.clearExpected(inst, sourceGeneration)
 		end
-		warn("[Ro Sync] ScriptEditorService unavailable; source write was not applied")
+		warn("[BloxSync] ScriptEditorService unavailable; source write was not applied")
 		return false
 	end
 	local ok, err = pcall(function()
@@ -2389,7 +2389,7 @@ local function applyScriptSource(inst, newSource: string, suppressStudioEcho: bo
 		if sourceGeneration then
 			sourceSyncState.clearExpected(inst, sourceGeneration)
 		end
-		warn("[Ro Sync] UpdateSourceAsync failed; source write was not applied: " .. tostring(err))
+		warn("[BloxSync] UpdateSourceAsync failed; source write was not applied: " .. tostring(err))
 	end
 	return ok
 end
@@ -2972,7 +2972,7 @@ function snapshotApplyState.buildPhysicalSiblingIndex(parent, ctx, override)
 						snapshotApplyState.clearDiskPathSubtree(entry.child)
 						warn(
 							string.format(
-								"[Ro Sync] repaired duplicate cached disk fragment %q under %s",
+								"[BloxSync] repaired duplicate cached disk fragment %q under %s",
 								fragment,
 								parent:GetFullName()
 							)
@@ -4086,7 +4086,7 @@ local function applyOps(ops, shouldContinue): (boolean, { [any]: boolean }?)
 	if shouldContinue and not shouldContinue() then
 		return false
 	end
-	local label = "Ro Sync: " .. summarizeOps(ops)
+	local label = "BloxSync: " .. summarizeOps(ops)
 	snapshotApplyState.recoverOrphanedApplyRecording()
 	local beginOk, beginResult = pcall(function()
 		return ChangeHistoryService:TryBeginRecording(label, label)
@@ -4268,7 +4268,7 @@ end
 
 local function applySnapshot(snap, shouldContinue): (boolean, string?)
 	-- Apply a full snapshot payload returned by /snapshot.
-	setWaypoint("Ro Sync: before snapshot")
+	setWaypoint("BloxSync: before snapshot")
 	lastRemoteApplyClock = os.clock()
 	local ok, err = pcall(function()
 		local sourceWrites = {}
@@ -4330,10 +4330,10 @@ local function applySnapshot(snap, shouldContinue): (boolean, string?)
 	lastRemoteApplyClock = os.clock()
 	if not ok then
 		log("applySnapshot error: " .. tostring(err))
-		setWaypoint("Ro Sync: snapshot incomplete")
+		setWaypoint("BloxSync: snapshot incomplete")
 		return false, tostring(err)
 	end
-	setWaypoint("Ro Sync: snapshot applied")
+	setWaypoint("BloxSync: snapshot applied")
 	return true, nil
 end
 
@@ -6777,7 +6777,7 @@ local remoteCodec
 do
 	local moduleScript = script:FindFirstChild("RemoteCodec")
 	if not moduleScript or not moduleScript:IsA("ModuleScript") then
-		error("[Ro Sync] packaged RemoteCodec module is missing")
+		error("[BloxSync] packaged RemoteCodec module is missing")
 	end
 	local module = require(moduleScript)
 	remoteCodec = module.install({
@@ -6817,10 +6817,10 @@ do
 					remoteHandlers[name] = handler
 				end
 			else
-				warn("[Ro Sync] native clipboard unavailable: " .. tostring(controller))
+				warn("[BloxSync] native clipboard unavailable: " .. tostring(controller))
 			end
 		else
-			warn("[Ro Sync] packaged Clipboard module failed to load: " .. tostring(module))
+			warn("[BloxSync] packaged Clipboard module failed to load: " .. tostring(module))
 		end
 	end
 end
@@ -6863,7 +6863,7 @@ do
 				if okCoordinator then
 					playscriptCoordinator = coordinator
 				else
-					warn("[Ro Sync] playscript coordinator initialization failed: " .. tostring(coordinator))
+					warn("[BloxSync] playscript coordinator initialization failed: " .. tostring(coordinator))
 				end
 			end
 		end
@@ -7816,7 +7816,7 @@ do
 				return false, previousError
 			end
 			local ended, endResult = pcall(function()
-				return service:EndTest(args.result or "Ro Sync forced playtest cleanup")
+				return service:EndTest(args.result or "BloxSync forced playtest cleanup")
 			end)
 			local endError = nil
 			if ended then
@@ -7998,7 +7998,7 @@ do
 		local stopped, stopResult = pcall(function()
 			return stopPlaytestJob(
 				job,
-				{ reason = terminal.outcome, result = "Ro Sync playscript completed" },
+				{ reason = terminal.outcome, result = "BloxSync playscript completed" },
 				forceStop
 			)
 		end)
@@ -8651,7 +8651,7 @@ do
 		for activeId in pairs(activeWorkflowRecordings) do
 			error("transaction already active: " .. tostring(activeId))
 		end
-		local name = tostring(args.name or ("Ro Sync workflow " .. transactionId))
+		local name = tostring(args.name or ("BloxSync workflow " .. transactionId))
 		local recordingId = ChangeHistoryService:TryBeginRecording(name, name)
 		if recordingId == nil then
 			error("Studio refused to begin change-history recording")
@@ -9395,7 +9395,7 @@ do
 		end
 		local moduleScript = script:FindFirstChild("Photo")
 		if moduleScript == nil or not moduleScript:IsA("ModuleScript") then
-			error("Ro Sync Photo module is not packaged in this plugin; reinstall Ro Sync")
+			error("BloxSync Photo module is not packaged in this plugin; reinstall BloxSync")
 		end
 		photoModule = require(moduleScript)
 		return photoModule
@@ -9422,7 +9422,7 @@ do
 			error(fieldName .. " dimensions must be positive")
 		end
 		if x > PHOTO_MAX_AXIS or y > PHOTO_MAX_AXIS or x * y > PHOTO_MAX_PIXELS then
-			error(fieldName .. " exceeds the Ro Sync Photo size limit")
+			error(fieldName .. " exceeds the BloxSync Photo size limit")
 		end
 		return Vector2.new(x, y)
 	end
@@ -9442,7 +9442,7 @@ do
 			error("nativeRect coordinates must be non-negative and dimensions must be positive")
 		end
 		if width > PHOTO_MAX_AXIS or height > PHOTO_MAX_AXIS or width * height > PHOTO_MAX_PIXELS then
-			error("nativeRect exceeds the Ro Sync Photo size limit")
+			error("nativeRect exceeds the BloxSync Photo size limit")
 		end
 		return Rect.new(x, y, x + width, y + height)
 	end
@@ -9744,7 +9744,7 @@ do
 			or height > PHOTO_MAX_AXIS
 			or width * height > PHOTO_MAX_PIXELS
 		then
-			error("Photo returned dimensions outside the Ro Sync size limit")
+			error("Photo returned dimensions outside the BloxSync size limit")
 		end
 
 		local expected = width * height * 4
@@ -10736,7 +10736,7 @@ do
 				(game :: any):Save()
 			end)
 			if not ok then
-				warn("[Ro Sync] game:Save() failed: " .. tostring(err))
+				warn("[BloxSync] game:Save() failed: " .. tostring(err))
 			end
 		end)
 		return { ok = true, started = true }
@@ -10787,7 +10787,7 @@ do
 	do
 		local moduleScript = script:FindFirstChild("Reflection")
 		if not moduleScript or not moduleScript:IsA("ModuleScript") then
-			error("[Ro Sync] packaged Reflection module is missing")
+			error("[BloxSync] packaged Reflection module is missing")
 		end
 		local module = require(moduleScript)
 		local controller = module.install({
@@ -10899,7 +10899,7 @@ do
 				else "invalid writelog response"
 		end
 		if not ok then
-			warn("[Ro Sync] writelog POST failed: " .. tostring(response))
+			warn("[BloxSync] writelog POST failed: " .. tostring(response))
 		end
 		return ok, response
 	end
@@ -11304,11 +11304,11 @@ reconnectState.stopTerminal = function(reason)
 		end)
 	end
 	if message:lower():find("protocol", 1, true) then
-		setPill("error", "update Ro Sync")
-		setBanner("Daemon/plugin versions are incompatible. Update Ro Sync and reinstall the Studio plugin.")
+		setPill("error", "update BloxSync")
+		setBanner("Daemon/plugin versions are incompatible. Update BloxSync and reinstall the Studio plugin.")
 	else
 		setPill("error", "action required")
-		setBanner("Ro Sync connection rejected: " .. message)
+		setBanner("BloxSync connection rejected: " .. message)
 	end
 	log("ws: terminal rejection — " .. message)
 end
@@ -11368,7 +11368,7 @@ reconnectState.refreshHello = function()
 			candidatePort = tostring(discovered.port or candidatePort or "?")
 			hello, helloError = readHello(candidateUrl)
 		elseif type(discovered) == "table" and discovered.ambiguous == true then
-			return false, "multiple Ro Sync projects match this place; enter the intended daemon URL manually", true
+			return false, "multiple BloxSync projects match this place; enter the intended daemon URL manually", true
 		end
 	end
 
@@ -11716,7 +11716,7 @@ local function wsLoop(gen)
 								errorCount
 							)
 							setBanner(
-								"A Studio update was not fully written to disk. Ro Sync is reconciling before continuing."
+								"A Studio update was not fully written to disk. BloxSync is reconciling before continuing."
 							)
 							closeClient()
 						end
@@ -13400,7 +13400,7 @@ local function doPullPath(strictDisk: boolean?, selectiveSelectedCount: number?,
 		if not shouldContinue() then
 			return false, mutationGuard.reason or "Studio changed before streamed commit"
 		end
-		local label = "Ro Sync: streamed snapshot"
+		local label = "BloxSync: streamed snapshot"
 		local recordingOk, recordingId = pcall(function()
 			return ChangeHistoryService:TryBeginRecording(label, label)
 		end)
@@ -13883,7 +13883,7 @@ runInitialCompare = function()
 		if reconnectState.mutationRestarts > 2 then
 			setBanner(
 				string.format(
-					"Studio kept changing while Ro Sync compared the place. Retrying in %.1fs (%s).",
+					"Studio kept changing while BloxSync compared the place. Retrying in %.1fs (%s).",
 					waitSec,
 					tostring(reason)
 				)
@@ -13975,7 +13975,7 @@ runInitialCompare = function()
 			else nil
 		if scanError then
 			log("initial-compare rejected the project: " .. scanError:sub(1, 300))
-			reconnectState.stopTerminal("Ro Sync could not read this project: " .. scanError)
+			reconnectState.stopTerminal("BloxSync could not read this project: " .. scanError)
 		else
 			log("initial-compare: malformed response")
 			reconnectState.stopTerminal("daemon returned a malformed initial-compare response")
@@ -14830,7 +14830,7 @@ local function projectInitUnavailableMessage(hello)
 	if type(init.error) == "string" and init.error ~= "" then
 		return init.error
 	end
-	return "Set a Projects folder in Ro Sync Desktop Settings before creating this project."
+	return "Set a Projects folder in BloxSync Desktop Settings before creating this project."
 end
 
 reconnectState.discoverDaemon = function(gameId, quiet, includeInitializer, expectedProject, shouldContinue)
@@ -15049,8 +15049,8 @@ local function beginDaemonConnection(chosenUrl, chosenPort)
 	if not protocolOk then
 		reconnectState.desired = false
 		log("connect blocked: " .. tostring(protocolError))
-		setPill("error", "update Ro Sync")
-		setBanner("Daemon/plugin versions are incompatible. Update Ro Sync and reinstall the Studio plugin.")
+		setPill("error", "update BloxSync")
+		setBanner("Daemon/plugin versions are incompatible. Update BloxSync and reinstall the Studio plugin.")
 		busy = false
 		return false
 	end
@@ -15089,11 +15089,11 @@ end
 
 local function createProjectAndWait(candidate, attempt)
 	setPill("project_creating")
-	setBanner("Collecting Studio metadata and creating the Ro Sync project...")
+	setBanner("Collecting Studio metadata and creating the BloxSync project...")
 	local metadata = collectProjectInitMetadata()
 	if metadata.gameId == nil or metadata.placeId == nil then
 		setPill("error", "publish this place first")
-		setBanner("Ro Sync needs a published GameId and PlaceId before it can create a project.")
+		setBanner("BloxSync needs a published GameId and PlaceId before it can create a project.")
 		busy = false
 		projectInitCandidate = nil
 		return
@@ -15123,7 +15123,7 @@ local function createProjectAndWait(candidate, attempt)
 	end
 	if not ok then
 		setPill("error", "project request failed")
-		setBanner("Could not reach Ro Sync Desktop: " .. tostring(response))
+		setBanner("Could not reach BloxSync Desktop: " .. tostring(response))
 		log("project-init request failed: " .. tostring(response))
 		busy = false
 		projectInitCandidate = nil
@@ -15150,7 +15150,7 @@ local function createProjectAndWait(candidate, attempt)
 	local initStatus = decoded.status or (decoded.reused == true and "existing" or "created")
 	log(string.format("project-init %s: %s", tostring(initStatus), projectPath))
 	setPill("project_waiting")
-	setBanner("Project created at " .. projectPath .. ". Waiting for Ro Sync Desktop to start its daemon...")
+	setBanner("Project created at " .. projectPath .. ". Waiting for BloxSync Desktop to start its daemon...")
 
 	local deadline = os.clock() + PROJECT_DAEMON_WAIT_SECONDS
 	while busy and attempt == connectionAttempt and os.clock() < deadline do
@@ -15166,7 +15166,7 @@ local function createProjectAndWait(candidate, attempt)
 			busy = false
 			setPill("error", "multiple projects")
 			setBanner(
-				"Multiple Ro Sync projects now match this place. Enter the intended daemon URL manually to finish connecting."
+				"Multiple BloxSync projects now match this place. Enter the intended daemon URL manually to finish connecting."
 			)
 			log("project-init: daemon discovery became ambiguous")
 			return
@@ -15180,7 +15180,7 @@ local function createProjectAndWait(candidate, attempt)
 		setBanner(
 			"The project was created at "
 				.. projectPath
-				.. ", but Desktop did not start its daemon. Open Ro Sync Desktop, then click Connect."
+				.. ", but Desktop did not start its daemon. Open BloxSync Desktop, then click Connect."
 		)
 		log("project-init: timed out waiting for the Desktop-managed daemon")
 	end
@@ -15344,7 +15344,7 @@ startConnect = function()
 				end
 				setPill("daemon_waiting", remaining)
 				if scanCount == 1 then
-					setBanner("Waiting for Ro Sync Desktop to start this project's daemon. Cancel stops waiting.")
+					setBanner("Waiting for BloxSync Desktop to start this project's daemon. Cancel stops waiting.")
 					log(
 						string.format(
 							"no matching daemon yet; waiting up to %d seconds for Desktop startup",
@@ -15365,7 +15365,7 @@ startConnect = function()
 				if result.ambiguous then
 					setPill("error", "multiple projects")
 					setBanner(
-						"Multiple Ro Sync projects match this place. Enter the intended daemon URL manually instead of choosing by port."
+						"Multiple BloxSync projects match this place. Enter the intended daemon URL manually instead of choosing by port."
 					)
 					log(
 						string.format(
@@ -15379,7 +15379,7 @@ startConnect = function()
 					projectInitCandidate = result.initializer
 					setPill("project_init")
 					setBanner(
-						"No Ro Sync project exists for this experience. Click Create Project to initialize it under "
+						"No BloxSync project exists for this experience. Click Create Project to initialize it under "
 							.. tostring(result.initializer.projectsRoot)
 							.. "."
 					)
@@ -15390,7 +15390,7 @@ startConnect = function()
 					log("Desktop project initializer unavailable: " .. tostring(result.initializerError))
 				elseif result.sawWrongGame then
 					setPill("wrong_game")
-					setBanner("Ro Sync Desktop is running, but its daemon does not offer project initialization.")
+					setBanner("BloxSync Desktop is running, but its daemon does not offer project initialization.")
 					log("found a daemon on a probed port, but no gameId match or project initializer")
 				else
 					setPill("no_daemon", gameId)
@@ -15418,4 +15418,4 @@ plugin.Unloading:Connect(function()
 end)
 
 setPill("idle")
-log("Ro Sync loaded. Click Connect to auto-discover the daemon.")
+log("BloxSync loaded. Click Connect to auto-discover the daemon.")

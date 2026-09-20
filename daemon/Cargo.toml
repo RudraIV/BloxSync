@@ -1,10 +1,10 @@
 [package]
-name = "rosync"
-version = "0.3.0"
+name = "bloxsync"
+version = "0.3.0-bloxsync.1"
 edition = "2021"
 
 [[bin]]
-name = "rosync"
+name = "bloxsync"
 path = "src/main.rs"
 
 [dependencies]

@@ -179,6 +179,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "bloxsync"
+version = "0.3.0-bloxsync.1"
+dependencies = [
+ "axum",
+ "base64",
+ "clap",
+ "dirs",
+ "futures",
+ "libc",
+ "notify",
+ "notify-debouncer-full",
+ "png",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-tungstenite 0.21.0",
+ "toml_edit",
+ "tower",
+ "tower-http",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1339,33 +1366,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rosync"
-version = "0.3.0"
-dependencies = [
- "axum",
- "base64",
- "clap",
- "dirs",
- "futures",
- "libc",
- "notify",
- "notify-debouncer-full",
- "png",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "tokio",
- "tokio-stream",
- "tokio-tungstenite 0.21.0",
- "toml_edit",
- "tower",
- "tower-http",
- "unicode-normalization",
 ]
 
 [[package]]

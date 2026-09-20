@@ -65,7 +65,7 @@ local function statusView(state, detail)
 	elseif state == "project_init" then
 		return "New Studio project · ready to create", Colors.Accent, "Create Project"
 	elseif state == "project_creating" then
-		return "Creating Ro Sync project...", Colors.Accent, "Cancel"
+		return "Creating BloxSync project...", Colors.Accent, "Cancel"
 	elseif state == "project_waiting" then
 		return "Project ready · waiting for Desktop...", Colors.Accent, "Cancel"
 	elseif state == "daemon_waiting" then

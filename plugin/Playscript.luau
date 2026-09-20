@@ -1,6 +1,6 @@
 --!nonstrict
 
--- Long-lived, generation-scoped playtest scripts for Ro Sync.
+-- Long-lived, generation-scoped playtest scripts for BloxSync.
 --
 -- This module deliberately owns the playscript runtime and coordinator state so
 -- the already-large Plugin.luau chunk does not cross Luau's 200-register limit.

@@ -1,21 +1,51 @@
-<p align="center">
-  <img src="docs/assets/rosync-hero.svg" alt="Ro Sync — Desktop, Terminal 64, and CLI connect through one local engine to Roblox Studio" width="100%" />
-</p>
-
-<h1 align="center">Ro Sync</h1>
+<h1 align="center">BloxSync</h1>
 
 <p align="center">
-  <strong>A local-first Roblox Studio control plane for humans and coding agents.</strong><br />
-  Sync scripts, inspect the live DataModel, capture models and UI, drive playtests,
-  and lint with Studio-aware types — all from one CLI.
+  <strong>A Studio-authoritative Roblox sync engine for humans and coding agents.</strong><br />
+  Studio is the only writer. Disk is a faithful, version-controlled mirror of the
+  place — so a change is only real once it is in Studio, and the history is a
+  record of what Studio actually contained.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Pugbread/ro-sync/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Pugbread/ro-sync/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://github.com/Pugbread/ro-sync/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Pugbread/ro-sync?display_name=tag&sort=semver" /></a>
-  <img alt="Rust" src="https://img.shields.io/badge/engine-Rust-438af5" />
+  <img alt="Engine" src="https://img.shields.io/badge/engine-Rust-438af5" />
   <img alt="Protocol" src="https://img.shields.io/badge/plugin_protocol-6-26364f" />
+  <img alt="Mode" src="https://img.shields.io/badge/sync-mirror%20(Studio%20authoritative)-2ea043" />
 </p>
+
+---
+
+## What this fork changes
+
+BloxSync is a modified fork of [**Ro Sync** by Pugbread](https://github.com/Pugbread/ro-sync).
+All of the engine, protocol and tooling below is their work; this fork changes how
+sync arbitrates and adds a history.
+
+**Two-way sync makes desync structurally possible.** Both stores are writable, no
+transaction spans them, and reconciliation has to arbitrate. Upstream fails closed
+and parks an actionable conflict — including whenever it has no trustworthy baseline
+for an existing file, which is every file after a daemon restart. That restart
+conflict storm is the usual reason constant desync gets reported.
+
+BloxSync removes the ambiguity instead of arbitrating it:
+
+- **`syncMode: "mirror"`** makes Studio the only writer. `on_studio_push` never parks;
+  `on_fs_change` never propagates. Conflicts are structurally impossible, so there is
+  no prompt, because there is nothing to ask.
+- **A disk edit is reverted, not ignored.** Ignoring would let the tree — and therefore
+  the history — disagree with the place. The restore source is the last commit, which
+  *is* Studio's content, so no round-trip to Studio is needed.
+- **`gitHistory`** keeps a local git history of the mirror, committed on a debounce so
+  one burst of editing is one commit rather than one commit per autosave.
+
+`syncMode` defaults to `twoWay`, so upstream behaviour is unchanged unless you opt in.
+
+> **Licence note.** Upstream ships no licence, so it is all-rights-reserved by default.
+> This repository is a GitHub fork, which is what GitHub's terms permit. Do not
+> redistribute it as an independent project unless upstream adds a licence.
+
+---
+
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
@@ -97,12 +127,12 @@ Download a platform bundle from
 `PATH`, then:
 
 ```sh
-rosync plugin install
-rosync init --project /path/to/game
-rosync daemon start --project /path/to/game --raw
+bloxsync plugin install
+bloxsync init --project /path/to/game
+bloxsync daemon start --project /path/to/game --raw
 ```
 
-`rosync serve` keeps a foreground daemon for launchd, systemd, containers, or a
+`bloxsync serve` keeps a foreground daemon for launchd, systemd, containers, or a
 dev terminal.
 
 ## The agent loop
@@ -111,27 +141,27 @@ Discovery stays cheap and precise — read only what the task needs, write with
 guardrails, verify what you touched:
 
 ```sh
-rosync context --project .                                   # one compact environment read
-rosync tree --project . --path ReplicatedStorage --depth 3   # inspect
-rosync query --project . 'StarterGui/**/TextButton' --format paths
+bloxsync context --project .                                   # one compact environment read
+bloxsync tree --project . --path ReplicatedStorage --depth 3   # inspect
+bloxsync query --project . 'StarterGui/**/TextButton' --format paths
 
-rosync set --project . --path Workspace/Camera \
+bloxsync set --project . --path Workspace/Camera \
   --prop FieldOfView --value 80 --waypoint "camera pass"     # guarded write, one Undo
 
-rosync lint --project . --path ReplicatedStorage/Shared --summary
+bloxsync lint --project . --path ReplicatedStorage/Shared --summary
 ```
 
 Move native content between two served projects without exporting a model:
 
 ```sh
-rosync copy --project . Workspace/Map/Boss    # in the source project
-rosync paste --project . --to Workspace/Imported    # in the destination
+bloxsync copy --project . Workspace/Map/Boss    # in the source project
+bloxsync paste --project . --to Workspace/Imported    # in the destination
 ```
 
-`rosync commands --compact` lists command families;
+`bloxsync commands --compact` lists command families;
 [docs/client-commands.md](docs/client-commands.md) is the full generated
 reference. Versioned, assertion-checked multi-step workflows run through
-`rosync run --file workflow.json`.
+`bloxsync run --file workflow.json`.
 
 ## Sync model
 
@@ -149,10 +179,14 @@ Scripts with children use an `init (Name).*` file inside a matching directory;
 duplicate sibling names get deterministic `[N]` suffixes; renames and moves stay
 renames and reparents.
 
-When both sides differ on first connect, Ro Sync always asks before writing:
-**Keep Studio** does one clean Studio→disk overwrite, while **Choose files**
-lets you move individual divergent paths into the Studio queue and leaves the
-rest untouched.
+When both sides differ on first connect in `twoWay` mode, BloxSync always asks
+before writing: **Keep Studio** does one clean Studio→disk overwrite, while
+**Choose files** lets you move individual divergent paths into the Studio queue
+and leaves the rest untouched.
+
+In `mirror` mode there is no prompt. Studio is authoritative by definition, so
+first connect — and every reconnect — is unconditionally that same clean
+Studio→disk overwrite.
 
 Protocol 6 keeps first-connect memory bounded for projects with tens of
 thousands of instances. Structure requests contain at most 512 flat records
@@ -207,7 +241,7 @@ The packaged Photo engine needs no screenshot permission and no code inside the
 game:
 
 ```sh
-rosync capture photo --project . \
+bloxsync capture photo --project . \
   --focus Workspace/Map/Boss --view isometric \
   --size 1024x1024 --background transparent \
   --output ./captures/boss.png --raw
@@ -223,7 +257,7 @@ One command wraps the whole Studio playtest lifecycle: start, inject a
 playscript, stream its events, print the result, stop.
 
 ```sh
-rosync playtest run --project . \
+bloxsync playtest run --project . \
   --script ./bench.server.luau \
   --client-script ./join.client.luau \
   --mode multiplayer --players 2 \
@@ -243,7 +277,7 @@ edit mode.
   managed shutdown is authenticated — stale PID records are never trusted.
 - Browser-backed clients need an allowlisted local origin and an owner
   capability; the desktop renderer has no unrestricted shell access.
-- Raw `Parent` writes are refused (`rosync mv` instead), cross-service moves
+- Raw `Parent` writes are refused (`bloxsync mv` instead), cross-service moves
   require `--force`, and every Studio write lands in an append-only local log.
 
 Reporting and trust boundaries: [SECURITY.md](SECURITY.md).
@@ -254,8 +288,8 @@ Reporting and trust boundaries: [SECURITY.md](SECURITY.md).
 flowchart LR
   Desktop["Tauri Desktop"] --> UI["Shared frontend"]
   Widget["Terminal 64 widget"] --> UI
-  UI --> Daemon["rosync daemon"]
-  CLI["rosync CLI"] --> Daemon
+  UI --> Daemon["bloxsync daemon"]
+  CLI["bloxsync CLI"] --> Daemon
   Daemon <--> Plugin["Studio plugin"]
   Daemon <--> Files["Project filesystem"]
 ```
@@ -271,7 +305,7 @@ Full component and lifecycle model: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 | Linux x86_64 | Buildable | ✅ | ✅ | Studio is not native |
 
 Release bundles include the checksum-pinned Luau compiler used by
-`rosync lint`.
+`bloxsync lint`.
 
 ## Documentation
 
@@ -283,7 +317,7 @@ Release bundles include the checksum-pinned Luau compiler used by
 
 Served projects also get generated `ro-sync.md`, `AGENTS.md`, `CLAUDE.md`, and
 `.codex/config.toml` agent docs; refresh them after upgrades with
-`rosync refresh --project .`.
+`bloxsync refresh --project .`.
 
 ## Development
 

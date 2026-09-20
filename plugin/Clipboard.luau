@@ -1,7 +1,7 @@
 --!strict
 
 -- Native cross-Studio clipboard support. Payloads are opaque `.rbxm` buffers
--- produced and consumed by Roblox's SerializationService; Ro Sync only moves
+-- produced and consumed by Roblox's SerializationService; BloxSync only moves
 -- bounded, hash-checked chunks between connected Studio sessions.
 
 local Clipboard = {}
@@ -485,7 +485,7 @@ function Clipboard.install(deps: any)
 			parents[index] = parent
 		end
 
-		local label = string.format("Ro Sync paste (%d instance%s)", #instances, if #instances == 1 then "" else "s")
+		local label = string.format("BloxSync paste (%d instance%s)", #instances, if #instances == 1 then "" else "s")
 		checkDeadline(deadline, "change-history setup")
 		local recordingId = ChangeHistoryService:TryBeginRecording(label, label)
 		if recordingId == nil then

@@ -71,7 +71,7 @@ fn daemon_status_survives_a_one_mib_process_stack() {
     let mut command = Command::new("/bin/sh");
     command
         .args(["-c", "ulimit -s 1024 && exec \"$@\"", "rosync-stack-test"])
-        .arg(env!("CARGO_BIN_EXE_rosync"))
+        .arg(env!("CARGO_BIN_EXE_bloxsync"))
         .args([
             "daemon",
             "status",
@@ -141,7 +141,7 @@ fn closing_parent_stdin_terminates_a_blocked_lifecycle_process() {
     )
     .expect("write runtime record");
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rosync"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_bloxsync"))
         .args([
             "daemon",
             "status",

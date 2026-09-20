@@ -1,7 +1,7 @@
 --!nonstrict
 
 -- Filesystem-safe naming, duplicate allocation, and generated Studio path
--- lookup for Ro Sync. Snapshot state is resolved lazily through the injected
+-- lookup for BloxSync. Snapshot state is resolved lazily through the injected
 -- getter because Plugin.luau initializes that mutually-dependent state later.
 
 local PathHelpersModule = {}

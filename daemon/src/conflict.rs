@@ -139,6 +139,9 @@ pub enum FsDecision {
     Propagate,
     /// Conflict parked: Studio has an unapplied push whose content differs from FS.
     Conflict,
+    /// Mirror mode only: disk drifted from Studio. The change must NOT reach
+    /// Studio; the caller restores the file from Studio instead.
+    Revert,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -206,6 +209,10 @@ pub struct ConflictEngine {
     baselines: Mutex<HashMap<PathBuf, Baseline>>,
     conflicts: Mutex<HashMap<PathBuf, ParkedConflict>>,
     pending_fs_destructive: Mutex<HashMap<PathBuf, FsDestructiveAction>>,
+    /// Mirror mode: Studio is the only writer. Disk edits never reach Studio and
+    /// a Studio push never parks a conflict, because there is nothing to
+    /// arbitrate — see `docs/SYNC_INVARIANTS.md`, "Studio-authoritative mirror".
+    studio_authoritative: bool,
 }
 
 /// In-memory reconciliation state captured before a multi-service generation.
@@ -246,6 +253,19 @@ fn resolve_key<V>(map: &HashMap<PathBuf, V>, path: &Path) -> PathBuf {
 impl ConflictEngine {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Mirror mode engine: Studio is authoritative and conflicts are structurally
+    /// impossible. `on_studio_push` never parks, `on_fs_change` never propagates.
+    pub fn new_studio_authoritative() -> Self {
+        Self {
+            studio_authoritative: true,
+            ..Self::default()
+        }
+    }
+
+    pub fn is_studio_authoritative(&self) -> bool {
+        self.studio_authoritative
     }
 
     /// Capture all in-memory reconciliation state before an atomic
@@ -533,6 +553,11 @@ impl ConflictEngine {
     pub fn finish_fs_destructive(&self, source: &Path) -> FsDecision {
         let source = stable_path(source);
         let action = self.pending_fs_destructive.lock().unwrap().remove(&source);
+        // Mirror mode: deleting or renaming a mirrored file on disk must never
+        // delete or rename the script in Studio. Restore it instead.
+        if self.studio_authoritative {
+            return FsDecision::Revert;
+        }
         let Some(action) = action else {
             // Unknown destructive ops fail closed if an intersecting conflict
             // is already present, but preserve legacy clean propagation.
@@ -593,6 +618,23 @@ impl ConflictEngine {
     pub fn on_fs_change(&self, path: &Path, fs_bytes: &[u8], fs_mtime: u64) -> FsDecision {
         let fs_h = hash(fs_bytes);
 
+        // Mirror mode: a disk change is either the echo of our own write or an
+        // edit that must be undone. It never travels to Studio.
+        if self.studio_authoritative {
+            let baseline = {
+                let b = self.baselines.lock().unwrap();
+                let key = resolve_key(&*b, path);
+                b.get(&key).copied()
+            };
+            return match baseline {
+                Some(b) if b.last_plugin_push_hash == fs_h => {
+                    self.record_sync(path, fs_h, fs_mtime);
+                    FsDecision::NoChange
+                }
+                _ => FsDecision::Revert,
+            };
+        }
+
         // If there's already a parked studio push for this path, fold in fresh FS info.
         {
             let mut c = self.conflicts.lock().unwrap();
@@ -648,6 +690,26 @@ impl ConflictEngine {
         current_fs: Option<(&[u8], u64)>,
     ) -> StudioDecision {
         let studio_h = hash(studio_bytes);
+
+        // Mirror mode: Studio is the only writer, so there is nothing to
+        // arbitrate. Notably this also removes the restart conflict storm — the
+        // two-way path parks whenever it has no trustworthy baseline for an
+        // existing file, which is every file after a daemon restart.
+        if self.studio_authoritative {
+            {
+                let mut conflicts = self.conflicts.lock().unwrap();
+                let key = resolve_key(&*conflicts, path);
+                conflicts.remove(&key);
+            }
+            let Some((fs_bytes, fs_mtime)) = current_fs else {
+                return StudioDecision::Apply;
+            };
+            if hash(fs_bytes) == studio_h {
+                self.record_sync(path, studio_h, fs_mtime);
+                return StudioDecision::NoChange;
+            }
+            return StudioDecision::Apply;
+        }
 
         // A filesystem delete/rename has already happened, but its watcher op
         // is held for a short grace window. Treat a concurrent Studio push as
@@ -1235,5 +1297,109 @@ mod tests {
         );
         assert_ne!(stable, std::fs::canonicalize(&requested).unwrap());
         assert_eq!(std::fs::read(&external_source).unwrap(), b"external\n");
+    }
+
+    // ---- Mirror mode (Studio-authoritative) ----
+
+    #[test]
+    fn mirror_studio_push_never_parks_even_with_no_baseline() {
+        // The two-way path parks here ("no trustworthy baseline ... for example
+        // after restart"), which is the restart conflict storm. Mirror must not.
+        let e = ConflictEngine::new_studio_authoritative();
+        assert_eq!(
+            e.on_studio_push(&p("/x/a.luau"), b"studio", Some((b"disk drifted", 200))),
+            StudioDecision::Apply
+        );
+        assert!(
+            e.list().is_empty(),
+            "mirror mode must never park a conflict"
+        );
+    }
+
+    #[test]
+    fn mirror_studio_push_skips_identical_bytes() {
+        let e = ConflictEngine::new_studio_authoritative();
+        assert_eq!(
+            e.on_studio_push(&p("/x/a.luau"), b"same", Some((b"same", 200))),
+            StudioDecision::NoChange
+        );
+    }
+
+    #[test]
+    fn mirror_studio_push_clears_a_pre_existing_conflict() {
+        // A project switched into mirror mode may still hold conflicts parked
+        // by the two-way engine. The first Studio push must dissolve them.
+        let e = ConflictEngine::new_studio_authoritative();
+        e.park_studio_update(&p("/x/a.luau"), b"disk".to_vec(), b"studio".to_vec(), 1);
+        assert_eq!(
+            e.on_studio_push(&p("/x/a.luau"), b"studio", Some((b"disk", 200))),
+            StudioDecision::Apply
+        );
+        assert!(e.list().is_empty());
+    }
+
+    #[test]
+    fn mirror_fs_edit_reverts_and_never_propagates() {
+        let e = ConflictEngine::new_studio_authoritative();
+        e.record_sync(&p("/x/a.luau"), hash(b"from studio"), 100);
+        assert_eq!(
+            e.on_fs_change(&p("/x/a.luau"), b"someone edited this on disk", 200),
+            FsDecision::Revert,
+            "a disk edit must never travel to Studio in mirror mode"
+        );
+    }
+
+    #[test]
+    fn mirror_fs_echo_of_our_own_write_is_not_a_revert() {
+        let e = ConflictEngine::new_studio_authoritative();
+        e.record_sync(&p("/x/a.luau"), hash(b"from studio"), 100);
+        assert_eq!(
+            e.on_fs_change(&p("/x/a.luau"), b"from studio", 200),
+            FsDecision::NoChange
+        );
+    }
+
+    #[test]
+    fn mirror_unknown_path_reverts_rather_than_propagating() {
+        // A file that appears on disk with no baseline is not a new script —
+        // Studio never made it, so it must not become one.
+        let e = ConflictEngine::new_studio_authoritative();
+        assert_eq!(
+            e.on_fs_change(&p("/x/stray.luau"), b"created by hand", 200),
+            FsDecision::Revert
+        );
+    }
+
+    #[test]
+    fn mirror_fs_delete_and_rename_revert() {
+        let e = ConflictEngine::new_studio_authoritative();
+        e.record_sync(&p("/x/a.luau"), hash(b"from studio"), 100);
+        e.begin_fs_delete(&p("/x/a.luau"), false);
+        assert_eq!(e.finish_fs_destructive(&p("/x/a.luau")), FsDecision::Revert);
+
+        e.begin_fs_rename(
+            &p("/x/b.luau"),
+            &p("/x/c.luau"),
+            false,
+            Some(b"body".to_vec()),
+        );
+        assert_eq!(e.finish_fs_destructive(&p("/x/b.luau")), FsDecision::Revert);
+    }
+
+    #[test]
+    fn two_way_default_still_parks() {
+        // Regression guard: mirror mode must not have changed upstream behaviour.
+        let e = ConflictEngine::new();
+        assert!(!e.is_studio_authoritative());
+        e.record_sync(&p("/x/a.luau"), hash(b"base"), 100);
+        assert_eq!(
+            e.on_studio_push(&p("/x/a.luau"), b"studio", Some((b"disk", 200))),
+            StudioDecision::Conflict
+        );
+        assert_eq!(e.list().len(), 1);
+        assert_eq!(
+            e.on_fs_change(&p("/x/b.luau"), b"new file", 200),
+            FsDecision::Propagate
+        );
     }
 }

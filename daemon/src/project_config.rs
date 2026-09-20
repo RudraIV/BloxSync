@@ -12,6 +12,27 @@ use std::path::{Path, PathBuf};
 pub const CONFIG_FILE: &str = "ro-sync.json";
 pub const CONFIG_VERSION: u32 = 1;
 
+/// Which side may write.
+///
+/// `TwoWay` is upstream behaviour and stays the default so existing projects
+/// are untouched. `Mirror` makes Studio the only writer: disk becomes a
+/// read-only projection, conflicts become structurally impossible, and there is
+/// no prompt because there is nothing to arbitrate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum SyncMode {
+    #[default]
+    #[serde(rename = "twoWay")]
+    TwoWay,
+    #[serde(rename = "mirror")]
+    Mirror,
+}
+
+impl SyncMode {
+    pub fn is_mirror(self) -> bool {
+        matches!(self, SyncMode::Mirror)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConfig {
     #[serde(default)]
@@ -44,6 +65,8 @@ pub struct ProjectConfig {
     pub wally_folder: Option<String>,
     #[serde(rename = "wallyFile", default, skip_serializing_if = "Option::is_none")]
     pub wally_file: Option<String>,
+    #[serde(rename = "syncMode", default)]
+    pub sync_mode: SyncMode,
     #[serde(default = "default_version")]
     pub version: u32,
     /// Preserve desktop/user settings that this daemon version does not know
@@ -79,6 +102,7 @@ impl ProjectConfig {
             wally_enabled: false,
             wally_folder: None,
             wally_file: None,
+            sync_mode: SyncMode::default(),
             version: CONFIG_VERSION,
             extra: BTreeMap::new(),
         }

@@ -1038,7 +1038,11 @@ async fn run_serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     let watcher = Watch::new(canonical_project.clone())?;
     let canonical_project = watcher.root().to_path_buf();
-    let conflict_engine = Arc::new(ConflictEngine::new());
+    let conflict_engine = Arc::new(if cfg.sync_mode.is_mirror() {
+        ConflictEngine::new_studio_authoritative()
+    } else {
+        ConflictEngine::new()
+    });
     let push_quiet: Arc<Mutex<HashMap<PathBuf, Instant>>> = Arc::new(Mutex::new(HashMap::new()));
     let (request_tx, _) = broadcast::channel::<RequestEnvelope>(256);
     let (shutdown_tx, shutdown_rx) = tokio_watch::channel::<Option<String>>(None);

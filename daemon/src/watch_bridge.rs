@@ -878,6 +878,7 @@ pub(super) fn handle_op(
                 FsDecision::NoChange => {}
                 FsDecision::Propagate => emit_op(events, root, &op),
                 FsDecision::Conflict => emit_conflict(events, &op.path),
+                FsDecision::Revert => emit_mirror_revert(events, &op.path, "update"),
             }
             None
         }
@@ -889,6 +890,10 @@ pub(super) fn handle_op(
                     path: op.path,
                     from: None,
                 })
+            }
+            FsDecision::Revert => {
+                emit_mirror_revert(events, &op.path, "delete");
+                None
             }
             FsDecision::NoChange | FsDecision::Propagate => {
                 emit_op(events, root, &op);
@@ -906,6 +911,10 @@ pub(super) fn handle_op(
                         path: op.path,
                         from: op.from,
                     })
+                }
+                FsDecision::Revert => {
+                    emit_mirror_revert(events, source, "rename");
+                    None
                 }
                 FsDecision::NoChange | FsDecision::Propagate => {
                     emit_op(events, root, &op);
@@ -929,6 +938,23 @@ pub(super) fn emit_op(events: &broadcast::Sender<String>, root: &Path, op: &Op) 
     let payload = serde_json::json!({ "type": "plugin-op", "op": plugin_op });
     if let Ok(s) = serde_json::to_string(&payload) {
         let _ = events.send(s);
+    }
+}
+
+/// Mirror mode: a disk edit was refused. The change did NOT reach Studio; this
+/// asks the sync layer to restore the path from Studio so disk converges again.
+pub(super) fn emit_mirror_revert(
+    events: &broadcast::Sender<String>,
+    path: &std::path::Path,
+    cause: &str,
+) {
+    let payload = serde_json::json!({
+        "type": "mirror-revert",
+        "path": path,
+        "cause": cause,
+    });
+    if let Ok(serialized) = serde_json::to_string(&payload) {
+        let _ = events.send(serialized);
     }
 }
 

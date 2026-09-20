@@ -33,6 +33,14 @@ impl SyncMode {
     }
 }
 
+impl ProjectConfig {
+    /// Whether to keep a local git history of the mirrored tree.
+    pub fn git_history_enabled(&self) -> bool {
+        self.git_history
+            .unwrap_or_else(|| self.sync_mode.is_mirror())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConfig {
     #[serde(default)]
@@ -67,6 +75,15 @@ pub struct ProjectConfig {
     pub wally_file: Option<String>,
     #[serde(rename = "syncMode", default)]
     pub sync_mode: SyncMode,
+    /// Local git history of the mirrored tree. Unset follows the sync mode:
+    /// a mirror is a faithful projection of Studio, so its history is worth
+    /// keeping by default; a two-way project shares the tree with the user.
+    #[serde(
+        rename = "gitHistory",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub git_history: Option<bool>,
     #[serde(default = "default_version")]
     pub version: u32,
     /// Preserve desktop/user settings that this daemon version does not know
@@ -103,6 +120,7 @@ impl ProjectConfig {
             wally_folder: None,
             wally_file: None,
             sync_mode: SyncMode::default(),
+            git_history: None,
             version: CONFIG_VERSION,
             extra: BTreeMap::new(),
         }

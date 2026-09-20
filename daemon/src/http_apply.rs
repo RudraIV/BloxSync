@@ -2631,6 +2631,11 @@ pub(crate) fn apply_push_ops(state: &AppState, ops: &[Value]) -> PushApplyResult
     };
     let mut out = PushApplyResult::default();
     apply_ops_into(root, ops, &ctx, &mut out);
+    // Studio just wrote. Mark the tree dirty so the debounced committer records
+    // this burst once it goes quiet, rather than once per autosave.
+    if out.applied > 0 {
+        state.history.note_change();
+    }
     out
 }
 

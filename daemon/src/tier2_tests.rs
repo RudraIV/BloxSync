@@ -541,7 +541,14 @@ fn watcher_blocks_disk_delete_when_studio_source_is_divergent() {
     let (events, mut receiver) = broadcast::channel(4);
     let mut validation = fs_safety::SyncedPathValidationCache::new(temp.path()).unwrap();
     begin_fs_destructive_preflight(&op, &mut validation, &conflicts).unwrap();
-    let blocked = handle_op(op, &events, &conflicts, temp.path()).expect("delete must be blocked");
+    let blocked = handle_op(
+        op,
+        &events,
+        &conflicts,
+        temp.path(),
+        &crate::git_history::GitHistory::new(temp.path().to_path_buf(), false),
+    )
+    .expect("delete must be blocked");
 
     assert_eq!(blocked.kind, "delete");
     let event: serde_json::Value = serde_json::from_str(&receiver.try_recv().unwrap()).unwrap();
@@ -645,7 +652,14 @@ fn watcher_blocks_disk_rename_when_studio_source_is_divergent() {
     hydrate_watcher_op(&mut op, &mut validation).unwrap();
     assert_eq!(op.content.as_deref(), Some(&b"disk edit\n"[..]));
     begin_fs_destructive_preflight(&op, &mut validation, &conflicts).unwrap();
-    let blocked = handle_op(op, &events, &conflicts, temp.path()).expect("rename must be blocked");
+    let blocked = handle_op(
+        op,
+        &events,
+        &conflicts,
+        temp.path(),
+        &crate::git_history::GitHistory::new(temp.path().to_path_buf(), false),
+    )
+    .expect("rename must be blocked");
 
     assert_eq!(blocked.kind, "rename");
     let event: serde_json::Value = serde_json::from_str(&receiver.try_recv().unwrap()).unwrap();

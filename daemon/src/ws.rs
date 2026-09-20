@@ -2054,6 +2054,10 @@ mod tests {
             projects_root: Arc::new(None),
             events: events_tx,
             conflict: Arc::new(ConflictEngine::new()),
+            history: Arc::new(crate::git_history::GitHistory::new(
+                canonical.clone(),
+                false,
+            )),
             artifacts: crate::artifact::ArtifactStore::new(
                 canonical.join(".rosync-artifacts"),
                 8 * 1024 * 1024,

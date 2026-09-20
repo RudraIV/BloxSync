@@ -136,6 +136,7 @@ fn test_state(temp: &TempDir, projects_root: Option<PathBuf>) -> AppState {
         projects_root: Arc::new(projects_root),
         events,
         conflict: Arc::new(ConflictEngine::new()),
+        history: Arc::new(crate::git_history::GitHistory::new(project.clone(), false)),
         artifacts: crate::artifact::ArtifactStore::new(
             project.join(".rosync-artifacts"),
             8 * 1024 * 1024,

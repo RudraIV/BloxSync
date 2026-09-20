@@ -18,6 +18,7 @@ mod daemon_manager;
 mod diff;
 mod fs_map;
 mod fs_safety;
+mod git_history;
 mod http;
 mod img_upload;
 mod initial_sync;
@@ -83,6 +84,9 @@ pub struct AppState {
     pub projects_root: Arc<Option<PathBuf>>,
     pub events: broadcast::Sender<String>,
     pub conflict: Arc<ConflictEngine>,
+    /// Local git history of the mirrored tree. Studio is the only writer in
+    /// mirror mode, so every commit is a real Studio state.
+    pub history: Arc<git_history::GitHistory>,
     /// Short-lived, bounded binary artifacts uploaded by the Studio plugin.
     pub artifacts: artifact::ArtifactStore,
     pub project_name: Arc<RwLock<String>>,
@@ -1043,6 +1047,14 @@ async fn run_serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         ConflictEngine::new()
     });
+    let history = Arc::new(git_history::GitHistory::new(
+        canonical_project.clone(),
+        cfg.git_history_enabled(),
+    ));
+    if let Err(error) = history.prepare() {
+        eprintln!("bloxsync: {error}");
+    }
+    git_history::spawn(history.clone());
     let push_quiet: Arc<Mutex<HashMap<PathBuf, Instant>>> = Arc::new(Mutex::new(HashMap::new()));
     let (request_tx, _) = broadcast::channel::<RequestEnvelope>(256);
     let (shutdown_tx, shutdown_rx) = tokio_watch::channel::<Option<String>>(None);
@@ -1085,6 +1097,7 @@ async fn run_serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         projects_root: Arc::new(projects_root),
         events: tx.clone(),
         conflict: conflict_engine.clone(),
+        history: history.clone(),
         artifacts: artifact::ArtifactStore::new(
             canonical_project.join(".rosync-artifacts"),
             256 * 1024 * 1024,
@@ -1158,6 +1171,7 @@ async fn run_serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
         tx.clone(),
         conflict_engine.clone(),
         push_quiet.clone(),
+        history.clone(),
     )
     .map_err(|error| format!("serve: validate watched filesystem: {error}"))?;
     spawn_config_hot_reload(state.clone());

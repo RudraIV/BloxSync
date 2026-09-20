@@ -11,6 +11,7 @@ pub(super) fn spawn_watch_bridge(
     events: broadcast::Sender<String>,
     conflicts: Arc<ConflictEngine>,
     push_quiet: Arc<Mutex<HashMap<PathBuf, Instant>>>,
+    history: Arc<crate::git_history::GitHistory>,
 ) -> Result<(), String> {
     // Subscribe before the startup scans so a concurrent filesystem mutation
     // is queued and validated after the captured generation instead of falling
@@ -194,7 +195,7 @@ pub(super) fn spawn_watch_bridge(
                                 .await;
                         }
                     }
-                    if let Some(blocked) = handle_op(op, &events, &conflicts, &root) {
+                    if let Some(blocked) = handle_op(op, &events, &conflicts, &root, &history) {
                         let _ = http::write_log_entry(axum::Json(serde_json::json!({
                             "source": "filesystem-sync-conflict",
                             "op": blocked.kind,
@@ -274,7 +275,8 @@ pub(super) fn spawn_watch_bridge(
                                             },
                                         );
                                     }
-                                    let _ = handle_op(descendant, &events, &conflicts, &root);
+                                    let _ =
+                                        handle_op(descendant, &events, &conflicts, &root, &history);
                                 }
                             }
                             Err(error) => {
@@ -859,6 +861,7 @@ pub(super) fn handle_op(
     events: &broadcast::Sender<String>,
     conflicts: &ConflictEngine,
     root: &Path,
+    history: &crate::git_history::GitHistory,
 ) -> Option<BlockedFsDestructive> {
     match op.kind {
         OpKind::Add | OpKind::Update => {
@@ -878,7 +881,7 @@ pub(super) fn handle_op(
                 FsDecision::NoChange => {}
                 FsDecision::Propagate => emit_op(events, root, &op),
                 FsDecision::Conflict => emit_conflict(events, &op.path),
-                FsDecision::Revert => emit_mirror_revert(events, &op.path, "update"),
+                FsDecision::Revert => restore_from_history(history, events, &op.path, "update"),
             }
             None
         }
@@ -892,7 +895,7 @@ pub(super) fn handle_op(
                 })
             }
             FsDecision::Revert => {
-                emit_mirror_revert(events, &op.path, "delete");
+                restore_from_history(history, events, &op.path, "delete");
                 None
             }
             FsDecision::NoChange | FsDecision::Propagate => {
@@ -913,7 +916,7 @@ pub(super) fn handle_op(
                     })
                 }
                 FsDecision::Revert => {
-                    emit_mirror_revert(events, source, "rename");
+                    restore_from_history(history, events, source, "rename");
                     None
                 }
                 FsDecision::NoChange | FsDecision::Propagate => {
@@ -941,8 +944,30 @@ pub(super) fn emit_op(events: &broadcast::Sender<String>, root: &Path, op: &Op) 
     }
 }
 
-/// Mirror mode: a disk edit was refused. The change did NOT reach Studio; this
-/// asks the sync layer to restore the path from Studio so disk converges again.
+/// Mirror mode: a disk edit was refused. The change did NOT reach Studio, and
+/// the file is put back so disk stays equal to Studio rather than merely being
+/// ignored — an ignored edit would leave the tree, and therefore the history,
+/// disagreeing with the place.
+///
+/// The restore source is the last commit, which IS Studio's content, so this
+/// needs no round-trip to Studio. Without a history to restore from there is
+/// nothing safe to do but report it.
+pub(super) fn restore_from_history(
+    history: &crate::git_history::GitHistory,
+    events: &broadcast::Sender<String>,
+    path: &std::path::Path,
+    cause: &str,
+) {
+    match history.restore_path(path) {
+        Ok(()) => emit_mirror_revert(events, path, cause),
+        Err(error) => emit_sync_error(
+            events,
+            path,
+            &format!("mirror: refused a disk {cause} but could not restore it: {error}"),
+        ),
+    }
+}
+
 pub(super) fn emit_mirror_revert(
     events: &broadcast::Sender<String>,
     path: &std::path::Path,

@@ -2,6 +2,7 @@
   "commands": [
     "init",
     "plugin",
+    "autostart",
     "auth",
     "daemon",
     "commands",

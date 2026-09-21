@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, watch as tokio_watch};
 
 mod artifact;
+mod autostart;
 mod capture_command;
 mod cli;
 mod conflict;
@@ -166,6 +167,7 @@ fn resolve_command_port(command: &mut Command) -> Result<(), Box<dyn std::error:
         // The supervisor talks to no daemon of its own; each project daemon it
         // starts resolves its own port.
         Command::Supervise(_) => {}
+        Command::Autostart(_) => {}
         Command::Context(args) => {
             resolve_port_field(&mut args.port, args.project.as_deref(), "context")?
         }
@@ -511,6 +513,7 @@ async fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::Commands(args)) => run_commands(args),
         Some(Command::Context(args)) => run_context(args),
         Some(Command::Supervise(args)) => run_supervise(args).await,
+        Some(Command::Autostart(args)) => run_autostart(args),
         Some(Command::Run(args)) => run_workflow(args).await,
         Some(Command::Capabilities(args)) => run_capabilities(args).await,
         Some(Command::Capture(args)) => run_capture(args).await,
@@ -6101,9 +6104,69 @@ async fn run_supervise(args: cli::SuperviseArgs) -> Result<(), Box<dyn std::erro
         }
         None => {
             let state_dir = resolve(args.data_dir.as_deref())?;
+            if args.detach {
+                let pid = supervisor::respawn_detached(args.interval, Some(&state_dir))?;
+                println!("BloxSync supervisor detached (pid {pid})");
+                return Ok(());
+            }
             supervisor::run(state_dir, args.interval, args.quiet)
                 .await
                 .map_err(Into::into)
+        }
+    }
+}
+
+fn run_autostart(args: cli::AutostartArgs) -> Result<(), Box<dyn std::error::Error>> {
+    use cli::AutostartCommand;
+
+    match args.command {
+        AutostartCommand::Install(install) => {
+            let executable = match install.executable {
+                Some(path) => path,
+                None => std::env::current_exe()?,
+            };
+            let mut arguments = String::from("supervise --quiet --detach");
+            if let Some(interval) = install.interval {
+                arguments.push_str(&format!(" --interval {interval}"));
+            }
+            let registered = autostart::install(&executable, &arguments)?;
+            println!(
+                "BloxSync will start at logon: {} {}",
+                executable.display(),
+                arguments
+            );
+            match registered {
+                autostart::Registered::Windowless => println!(
+                    "Registered as an S4U logon task: it runs off the interactive desktop and is never drawn."
+                ),
+                autostart::Registered::InteractiveFallback => {
+                    println!("Registered as an interactive logon task (S4U needs elevation).");
+                    println!(
+                        "The supervisor is still windowless because it detaches itself; only the"
+                    );
+                    println!(
+                        "launcher blinks briefly at logon. Re-run elevated for a fully silent start."
+                    );
+                }
+            }
+            Ok(())
+        }
+        AutostartCommand::Uninstall => {
+            if autostart::uninstall()? {
+                println!("removed the BloxSync logon task");
+            } else {
+                println!("no BloxSync logon task was registered");
+            }
+            Ok(())
+        }
+        AutostartCommand::Status => {
+            match autostart::status()? {
+                autostart::Status::Installed { command } => {
+                    println!("installed: {command}")
+                }
+                autostart::Status::NotInstalled => println!("not installed"),
+            }
+            Ok(())
         }
     }
 }

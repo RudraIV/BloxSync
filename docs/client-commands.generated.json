@@ -3,6 +3,7 @@
   "source": "docs/commands/*.json",
   "categories": [
     "Project setup",
+    "Lifecycle",
     "Daemon",
     "Command registry",
     "Agent Runtime",
@@ -15,8 +16,7 @@
     "Maintenance",
     "Project docs",
     "Live writes",
-    "Studio clipboard",
-    "Lifecycle"
+    "Studio clipboard"
   ],
   "commands": [
     {
@@ -71,6 +71,44 @@
         "Installation removes stale RoSync.lua and RoSync.luau copies and reports that Studio must be restarted."
       ],
       "slug": "plugin"
+    },
+    {
+      "name": "autostart",
+      "title": "bloxsync autostart",
+      "category": "Lifecycle",
+      "description": "Registers the supervisor to start at logon so there is nothing to start by hand.",
+      "subcommands": [
+        "install",
+        "uninstall",
+        "status"
+      ],
+      "subcommandMetadata": {
+        "install": {
+          "safety": "local-state",
+          "requires": []
+        },
+        "uninstall": {
+          "safety": "local-state",
+          "requires": []
+        },
+        "status": {
+          "safety": "read-only",
+          "requires": []
+        }
+      },
+      "usage": "bloxsync autostart install [--executable <path>] [--interval <seconds>] | bloxsync autostart uninstall | bloxsync autostart status",
+      "examples": [
+        "bloxsync autostart install",
+        "bloxsync autostart status",
+        "bloxsync autostart uninstall"
+      ],
+      "notes": [
+        "Windows only so far. It registers a Task Scheduler logon task, not a Run key: Run launches a console binary on the interactive desktop and a window appears.",
+        "Task Scheduler's Hidden setting does NOT hide that window — it hides the task from the Task Scheduler list. LogonType S4U is what keeps the task off the interactive desktop.",
+        "Registering an S4U task needs elevation. Without it, install falls back to an interactive task and the supervisor re-launches itself with CREATE_NO_WINDOW, so the supervisor is still never drawn and only the launcher blinks at logon. Run install elevated for a fully silent start.",
+        "ExecutionTimeLimit is PT0S (no limit). The Windows default would stop the supervisor after three days and look like a random sync outage."
+      ],
+      "slug": "autostart"
     },
     {
       "name": "auth",

@@ -174,6 +174,44 @@ pub fn decide(
     Action::Start
 }
 
+/// Re-launch this process with no console and exit.
+///
+/// The interactive autostart fallback runs a console binary on the desktop, so
+/// a window would appear and stay. Handing the real work to a detached child
+/// reduces that to the launcher's own brief blink, and the supervisor itself is
+/// never drawn at all.
+#[cfg(windows)]
+pub fn respawn_detached(interval: Option<f64>, state_dir: Option<&Path>) -> Result<u32, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+
+    let executable =
+        std::env::current_exe().map_err(|error| format!("locate this executable: {error}"))?;
+    let mut command = std::process::Command::new(executable);
+    command.arg("supervise").arg("--quiet");
+    if let Some(interval) = interval {
+        command.arg("--interval").arg(interval.to_string());
+    }
+    if let Some(state_dir) = state_dir {
+        command.arg("--data-dir").arg(state_dir);
+    }
+    command
+        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    command
+        .spawn()
+        .map(|child| child.id())
+        .map_err(|error| format!("detach supervisor: {error}"))
+}
+
+#[cfg(not(windows))]
+pub fn respawn_detached(_interval: Option<f64>, _state_dir: Option<&Path>) -> Result<u32, String> {
+    Err("--detach is only implemented for Windows so far".into())
+}
+
 /// Run until killed. One pass per interval over every registered project.
 pub async fn run(state_dir: PathBuf, interval: Option<f64>, quiet: bool) -> Result<(), String> {
     let interval = interval

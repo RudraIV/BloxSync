@@ -47,6 +47,8 @@ pub enum Command {
     /// Keep a daemon alive for every registered project. Start this once at
     /// boot and opening a place in Studio needs no other step.
     Supervise(SuperviseArgs),
+    /// Start the supervisor at logon, windowless, so there is nothing to start by hand.
+    Autostart(AutostartArgs),
     /// Start, inspect, stop, restart, or read logs from a managed background daemon.
     Daemon(DaemonArgs),
     /// Print machine-readable command docs from the generated command registry.
@@ -2466,6 +2468,10 @@ pub struct SuperviseArgs {
     /// Suppress progress output. Used by the boot entry, which has no console.
     #[arg(long)]
     pub quiet: bool,
+    /// Re-launch windowless and exit. Used by the non-elevated autostart
+    /// fallback so the supervisor itself is never drawn.
+    #[arg(long)]
+    pub detach: bool,
     /// Override the state directory holding the supervised-project registry.
     #[arg(long = "data-dir")]
     pub data_dir: Option<PathBuf>,
@@ -2493,4 +2499,30 @@ pub struct SuperviseProjectArgs {
 pub struct SuperviseListArgs {
     #[arg(long = "data-dir")]
     pub data_dir: Option<PathBuf>,
+}
+
+#[derive(ClapArgs, Debug)]
+pub struct AutostartArgs {
+    #[command(subcommand)]
+    pub command: AutostartCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AutostartCommand {
+    /// Register the supervisor to start at logon.
+    Install(AutostartInstallArgs),
+    /// Remove the logon task. Any running daemons are left alone.
+    Uninstall,
+    /// Report whether the logon task is registered and what it runs.
+    Status,
+}
+
+#[derive(ClapArgs, Debug)]
+pub struct AutostartInstallArgs {
+    /// Executable to register. Defaults to the running binary.
+    #[arg(long)]
+    pub executable: Option<PathBuf>,
+    /// Seconds between supervisor health passes.
+    #[arg(long)]
+    pub interval: Option<f64>,
 }

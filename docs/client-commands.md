@@ -53,6 +53,34 @@ rosync plugin install --source ./plugin/Plugin.rbxm --plugin-dir ./scratch-plugi
 - Installation removes stale RoSync.lua and RoSync.luau copies and reports that Studio must be restarted.
 
 ---
+### `bloxsync autostart`
+
+Registers the supervisor to start at logon so there is nothing to start by hand.
+
+**Category:** Lifecycle
+
+**Usage**
+
+```sh
+bloxsync autostart install [--executable <path>] [--interval <seconds>] | bloxsync autostart uninstall | bloxsync autostart status
+```
+
+**Examples**
+
+```sh
+bloxsync autostart install
+bloxsync autostart status
+bloxsync autostart uninstall
+```
+
+**Notes**
+
+- Windows only so far. It registers a Task Scheduler logon task, not a Run key: Run launches a console binary on the interactive desktop and a window appears.
+- Task Scheduler's Hidden setting does NOT hide that window — it hides the task from the Task Scheduler list. LogonType S4U is what keeps the task off the interactive desktop.
+- Registering an S4U task needs elevation. Without it, install falls back to an interactive task and the supervisor re-launches itself with CREATE_NO_WINDOW, so the supervisor is still never drawn and only the launcher blinks at logon. Run install elevated for a fully silent start.
+- ExecutionTimeLimit is PT0S (no limit). The Windows default would stop the supervisor after three days and look like a random sync outage.
+
+---
 ### `rosync auth`
 
 Stores, inspects, or clears the CLI Roblox Open Cloud credential without accepting or printing the secret as a command-line value.

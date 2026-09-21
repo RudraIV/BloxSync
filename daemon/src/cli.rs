@@ -44,6 +44,9 @@ pub enum Command {
     Auth(AuthArgs),
     /// Run the HTTP/WebSocket sync daemon.
     Serve(ServeArgs),
+    /// Keep a daemon alive for every registered project. Start this once at
+    /// boot and opening a place in Studio needs no other step.
+    Supervise(SuperviseArgs),
     /// Start, inspect, stop, restart, or read logs from a managed background daemon.
     Daemon(DaemonArgs),
     /// Print machine-readable command docs from the generated command registry.
@@ -2450,4 +2453,44 @@ pub struct FindAttrArgs {
     pub value: Option<String>,
     #[arg(long)]
     pub raw: bool,
+}
+
+#[derive(ClapArgs, Debug)]
+pub struct SuperviseArgs {
+    #[command(subcommand)]
+    pub command: Option<SuperviseCommand>,
+    /// Seconds between health passes. Slower is fine: a healthy daemon needs
+    /// no attention and a dead one is not helped by a faster retry.
+    #[arg(long)]
+    pub interval: Option<f64>,
+    /// Suppress progress output. Used by the boot entry, which has no console.
+    #[arg(long)]
+    pub quiet: bool,
+    /// Override the state directory holding the supervised-project registry.
+    #[arg(long = "data-dir")]
+    pub data_dir: Option<PathBuf>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SuperviseCommand {
+    /// List the projects under supervision.
+    List(SuperviseListArgs),
+    /// Register a project so a daemon is kept alive for it.
+    Add(SuperviseProjectArgs),
+    /// Stop supervising a project. Its daemon is left as-is.
+    Remove(SuperviseProjectArgs),
+}
+
+#[derive(ClapArgs, Debug)]
+pub struct SuperviseProjectArgs {
+    #[arg(long)]
+    pub project: PathBuf,
+    #[arg(long = "data-dir")]
+    pub data_dir: Option<PathBuf>,
+}
+
+#[derive(ClapArgs, Debug)]
+pub struct SuperviseListArgs {
+    #[arg(long = "data-dir")]
+    pub data_dir: Option<PathBuf>,
 }

@@ -1634,3 +1634,33 @@ rosync serve --project . --port 7878 --game-id 1234567890
 - --projects-root advertises the authenticated Studio project initializer and constrains creation to one direct child below that canonical directory. Omit it for ordinary manual daemons.
 
 ---
+### `bloxsync supervise`
+
+Keeps a daemon alive for every registered project. Started once at boot, it is what makes opening a place in Studio require no other step.
+
+**Category:** Lifecycle
+
+**Usage**
+
+```sh
+bloxsync supervise [--interval <seconds>] [--quiet] [--data-dir <path>] | bloxsync supervise list|add|remove [--project <path>] [--data-dir <path>]
+```
+
+**Examples**
+
+```sh
+bloxsync supervise
+bloxsync supervise --quiet --interval 15
+bloxsync supervise list
+bloxsync supervise add --project .
+bloxsync supervise remove --project .
+```
+
+**Notes**
+
+- Registration is automatic: serving a project registers it, so opening a place once is the only setup.
+- A healthy daemon is left alone. An unresponsive one is never duplicated, because it still owns its port and runtime record, and an externally managed daemon is not the supervisor's to restart.
+- A project whose daemon will not stay up is retried with a doubling, capped backoff rather than respawned in a loop. Studio simply not being open is an ordinary reason for a start to fail.
+- The registry is re-read every pass, so a project registered by a daemon that just started is picked up without restarting the supervisor.
+
+---

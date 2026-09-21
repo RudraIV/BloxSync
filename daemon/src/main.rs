@@ -35,6 +35,7 @@ mod remote;
 mod snapshot;
 mod sourcemap;
 mod studio_clipboard;
+mod supervisor;
 mod sync_scope;
 mod upload_command;
 mod watch;
@@ -162,6 +163,9 @@ fn owner_heartbeat_should_shutdown(
 
 fn resolve_command_port(command: &mut Command) -> Result<(), Box<dyn std::error::Error>> {
     match command {
+        // The supervisor talks to no daemon of its own; each project daemon it
+        // starts resolves its own port.
+        Command::Supervise(_) => {}
         Command::Context(args) => {
             resolve_port_field(&mut args.port, args.project.as_deref(), "context")?
         }
@@ -506,6 +510,7 @@ async fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::Auth(args)) => run_auth(args),
         Some(Command::Commands(args)) => run_commands(args),
         Some(Command::Context(args)) => run_context(args),
+        Some(Command::Supervise(args)) => run_supervise(args).await,
         Some(Command::Run(args)) => run_workflow(args).await,
         Some(Command::Capabilities(args)) => run_capabilities(args).await,
         Some(Command::Capture(args)) => run_capture(args).await,
@@ -1042,6 +1047,19 @@ async fn run_serve(args: ServeArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     let watcher = Watch::new(canonical_project.clone())?;
     let canonical_project = watcher.root().to_path_buf();
+    // Serving a project is what registers it for supervision. Opening a place
+    // once is therefore the only setup there is: from the next boot onward the
+    // supervisor keeps a daemon up for it without anyone asking.
+    if let Ok(state_dir) = lifecycle::state_dir(None) {
+        match supervisor::register(&state_dir, &canonical_project) {
+            Ok(true) => eprintln!(
+                "bloxsync: registered {} for supervision",
+                canonical_project.display()
+            ),
+            Ok(false) => {}
+            Err(error) => eprintln!("bloxsync: could not register for supervision: {error}"),
+        }
+    }
     let conflict_engine = Arc::new(if cfg.sync_mode.is_mirror() {
         ConflictEngine::new_studio_authoritative()
     } else {
@@ -6030,3 +6048,62 @@ fn print_enum_items(enum_name: &str, value: &serde_json::Value) {
 
 #[cfg(test)]
 mod tier2_tests;
+
+async fn run_supervise(args: cli::SuperviseArgs) -> Result<(), Box<dyn std::error::Error>> {
+    use cli::SuperviseCommand;
+
+    let resolve = |dir: Option<&std::path::Path>| {
+        lifecycle::state_dir(dir)
+            .map_err(|error| format!("supervise: resolve state directory: {error}"))
+    };
+
+    match args.command {
+        Some(SuperviseCommand::List(list)) => {
+            let state_dir = resolve(list.data_dir.as_deref())?;
+            let registry = supervisor::load_registry(&state_dir)?;
+            if registry.projects.is_empty() {
+                println!("no projects are supervised yet — serve one once and it registers itself");
+            }
+            for project in registry.projects {
+                println!("{}", project.display());
+            }
+            Ok(())
+        }
+        Some(SuperviseCommand::Add(add)) => {
+            let state_dir = resolve(add.data_dir.as_deref())?;
+            let canonical = lifecycle::canonical_project(&add.project)?;
+            let added = supervisor::register(&state_dir, &canonical)?;
+            println!(
+                "{} {}",
+                if added {
+                    "supervising"
+                } else {
+                    "already supervised:"
+                },
+                canonical.display()
+            );
+            Ok(())
+        }
+        Some(SuperviseCommand::Remove(remove)) => {
+            let state_dir = resolve(remove.data_dir.as_deref())?;
+            let canonical = lifecycle::canonical_project(&remove.project)?;
+            let removed = supervisor::unregister(&state_dir, &canonical)?;
+            println!(
+                "{} {}",
+                if removed {
+                    "stopped supervising"
+                } else {
+                    "was not supervised:"
+                },
+                canonical.display()
+            );
+            Ok(())
+        }
+        None => {
+            let state_dir = resolve(args.data_dir.as_deref())?;
+            supervisor::run(state_dir, args.interval, args.quiet)
+                .await
+                .map_err(Into::into)
+        }
+    }
+}

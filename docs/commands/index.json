@@ -61,6 +61,7 @@
     "waypoint",
     "undo",
     "redo",
-    "serve"
+    "serve",
+    "supervise"
   ]
 }

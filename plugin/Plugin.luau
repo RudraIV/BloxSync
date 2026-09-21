@@ -30,6 +30,14 @@ local WATCHED_SERVICES = {
 }
 
 local SETTING_MANUAL_URL = "manualUrl"
+-- BloxSync: opening a place you have never opened before should not require a
+-- click. When a daemon offers project initialization, take it automatically
+-- instead of parking on a "Create Project" button.
+local SETTING_AUTO_INIT = "autoInitProject"
+-- Only ever auto-create once per place per session. A creation that fails
+-- would otherwise be retried by every rediscovery pass, which is how an
+-- automatic action turns into a loop that fills the user's disk.
+local autoInitAttempted = {}
 local DEFAULT_URL = "http://127.0.0.1:7878"
 local PORT_RANGE_START = 7878
 local PORT_RANGE_END = 7890
@@ -15377,6 +15385,32 @@ startConnect = function()
 					)
 				elseif result.initializer ~= nil then
 					projectInitCandidate = result.initializer
+					local placeKey = tostring(game.PlaceId)
+					local autoInit = plugin:GetSetting(SETTING_AUTO_INIT)
+					if autoInit == nil then
+						autoInit = true
+					end
+					if autoInit and not autoInitAttempted[placeKey] and game.PlaceId ~= 0 then
+						-- Same call the Create Project button makes. Doing it here is
+						-- the whole of "a new place needs no setup".
+						autoInitAttempted[placeKey] = true
+						projectInitCandidate = nil
+						busy = true
+						connectionAttempt += 1
+						local attempt = connectionAttempt
+						local candidate = result.initializer
+						setPill("project_creating")
+						setBanner(
+							"No BloxSync project exists for this place — creating one under "
+								.. tostring(candidate.projectsRoot)
+								.. "."
+						)
+						log("auto-initializing a project for this place")
+						task.spawn(function()
+							createProjectAndWait(candidate, attempt)
+						end)
+						return
+					end
 					setPill("project_init")
 					setBanner(
 						"No BloxSync project exists for this experience. Click Create Project to initialize it under "

@@ -5178,6 +5178,7 @@ fn compact_command_registry(
 fn command_output_cost(name: &str) -> &'static str {
     match name {
         "commands" => "high-full-or-low-single",
+        "autostart" => "low",
         "context" | "capabilities" | "plan" | "query" | "path" | "meta" | "services" | "where"
         | "open" | "classinfo" | "enums" | "enum" | "ping" | "version" => "low",
         "init" | "plugin" | "auth" | "daemon" | "status" | "doctor" | "ls" | "tree" | "props"
@@ -5187,7 +5188,7 @@ fn command_output_cost(name: &str) -> &'static str {
         | "playtest" | "run" => "medium",
         "source" | "conflicts" => "medium-special-case",
         "diff" | "changes" | "snapshot" | "get" | "eval" | "transmit" | "call" | "tail"
-        | "watch" | "serve" => "high-or-streaming",
+        | "watch" | "serve" | "supervise" => "high-or-streaming",
         _ => "unknown",
     }
 }
@@ -5206,7 +5207,7 @@ fn command_safety_class(name: &str) -> &'static str {
         "upload" | "monetization" => "open-cloud-mutating",
         "init" | "plugin" | "refresh" | "snapshot" | "repair" => "writes-local-files",
         "auth" => "writes-local-credentials",
-        "daemon" => "controls-local-service",
+        "daemon" | "supervise" | "autostart" => "controls-local-service",
         "tail" | "watch" => "streaming-read",
         "serve" => "starts-local-service",
         "commands" | "context" | "capabilities" | "plan" | "query" | "path" | "lint" | "get"

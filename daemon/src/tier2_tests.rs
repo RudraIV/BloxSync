@@ -2353,9 +2353,24 @@ fn command_audit_surface_includes_hidden_leaves_and_every_command_alias() {
     canonical.dedup();
     assert_eq!(
         canonical.len(),
-        106,
+        112,
         "update the explicit command validation matrix when executable leaves change"
     );
+    // The bare `supervise` loop is not listed: a command whose subcommand is
+    // optional is not itself a leaf, so only its terminal subcommands appear.
+    for leaf in [
+        "supervise list",
+        "supervise add",
+        "supervise remove",
+        "autostart install",
+        "autostart uninstall",
+        "autostart status",
+    ] {
+        assert!(
+            canonical.iter().any(|path| path == leaf),
+            "missing executable leaf: {leaf}"
+        );
+    }
     assert!(canonical.iter().any(|path| path == "img"));
     assert!(canonical.iter().any(|path| path == "imgs"));
 
